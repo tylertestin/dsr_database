@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title or "T-6 DSR" }}</title>
+  <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+  <style>
+    /* Optional: prevent body scrolling when drawer is open */
+    body.drawer-open {
+      overflow: hidden;
+    }
+  </style>
+  <script>
+    function sortTable(columnIndex, isDate = false) {
+        let table = document.getElementById("fleetTable");
+        let rows = Array.from(table.rows).slice(1); // Exclude header row
+        let isAscending = table.getAttribute("data-sort-order") === "asc";
+        
+        rows.sort((rowA, rowB) => {
+            let a = rowA.cells[columnIndex].innerText.trim();
+            let b = rowB.cells[columnIndex].innerText.trim();
+
+            if (isDate) {
+                a = new Date(a).getTime();
+                b = new Date(b).getTime();
+            } else if (!isNaN(a) && !isNaN(b)) {
+                a = parseFloat(a);
+                b = parseFloat(b);
+            }
+
+            return isAscending ? (a > b ? 1 : -1) : (a < b ? 1 : -1);
+        });
+
+        table.setAttribute("data-sort-order", isAscending ? "desc" : "asc");
+
+        // Reattach sorted rows
+        rows.forEach(row => table.appendChild(row));
+    }
+  </script>
+</head>
+<body class="bg-background text-white">
+
+  <!-- Right-side Drawer -->
+  <div id="rightDrawer" class="fixed top-0 right-0 h-full w-64 bg-gray-900 text-white shadow-lg transform translate-x-full transition-transform duration-300 z-50">
+    <div class="p-4 flex justify-between items-center border-b border-gray-700">
+      <h2 class="text-lg font-bold">HUD Navigation</h2>
+      <button onclick="toggleDrawer()" class="text-xl">&times;</button>
+    </div>
+    <ul class="flex flex-col p-4 space-y-3">
+      <li><a href="{{ url_for('p2p') }}" class="hover:underline">USN P2P</a></li>
+      <li><a href="{{ url_for('wf_p2p') }}" class="hover:underline">WF P2P</a></li>
+      <li><a href="{{ url_for('pm_summary') }}" class="hover:underline">PM Summary</a></li>
+      <li><a href="{{ url_for('single_hits') }}" class="hover:underline">Single Hits</a></li>
+    </ul>
+  </div>
+
+    <nav class="bg-panel p-4 flex items-center justify-between">
+      <div class="flex items-center">
+        <a href="{{ url_for('home') }}" class="flex items-center text-white hover:underline">
+          <img src="{{ url_for('static', filename='img/T6_logo.png') }}" class="h-8 w-10 mr-2">
+          <span class="text-xl font-bold">T-6 DSR</span>
+        </a>
+      </div>
+
+    <!-- Site Filter Checkboxes -->
+    <form id="site-filter-form" action="{{ request.path }}" method="GET" class="flex items-center space-x-4">
+      <label class="text-white">
+        <input type="checkbox" name="site" value="NASCC" {% if 'NASCC' in selected_sites %}checked{% endif %}> NASCC
+      </label>
+      <label class="text-white">
+        <input type="checkbox" name="site" value="NASWF" {% if 'NASWF' in selected_sites %}checked{% endif %}> NASWF
+      </label>
+      <label class="text-white">
+        <input type="checkbox" name="site" value="NASP" {% if 'NASP' in selected_sites %}checked{% endif %}> NASP
+      </label>
+      <button type="submit" class="bg-accent hover:bg-accent/80 text-white px-4 py-2 rounded">Filter</button>
+    </form>
+
+    <div class="flex items-center space-x-4">
+      <a href="{{ url_for('custom_sql') }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Search</a>
+      <a href="{{ url_for('quad') }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Summary</a>
+      <a href="{{ url_for('fleet', site=request.args.getlist('site')) }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Fleet</a>
+      <button onclick="toggleDrawer()" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">HUD</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="p-4">
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+    function toggleDrawer() {
+      const drawer = document.getElementById("rightDrawer");
+      const body = document.body;
+      if (drawer.classList.contains("translate-x-full")) {
+        drawer.classList.remove("translate-x-full");
+        body.classList.add("drawer-open");
+      } else {
+        drawer.classList.add("translate-x-full");
+        body.classList.remove("drawer-open");
+      }
+    }
+  </script>
+</body>
+
+<style>
+  /* Tooltip container */
+  .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: pointer;
+  }
+  
+  /* Tooltip text */
+  .tooltip .tooltip-text {
+      visibility: hidden;
+      width: 500px;
+      background-color: black;
+      color: white;
+      text-align: left;
+      padding: 10px;
+      border-radius: 5px;
+      position: absolute;
+      z-index: 100;
+      bottom: 125%; /* Position above the count */
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      white-space: pre-line;
+  }
+  
+  /* Show tooltip on hover */
+  .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+  }
+  </style>
+
+</html>

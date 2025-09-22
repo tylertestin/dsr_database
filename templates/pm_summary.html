@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <title>PM Summary</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Trebuchet MS', sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+            cursor: pointer; /* Make headers clickable */
+        }
+        th:hover {
+            background-color: #555;
+        }
+    </style>
+    <script>
+        function sortTable(columnIndex, isDate = false) {
+            let table = document.getElementById("pmTable");
+            let rows = Array.from(table.rows).slice(1); // Exclude header row
+            let isAscending = table.getAttribute("data-sort-order") === "asc";
+            
+            rows.sort((rowA, rowB) => {
+                let a = rowA.cells[columnIndex].innerText.trim();
+                let b = rowB.cells[columnIndex].innerText.trim();
+
+                if (isDate) {
+                    a = new Date(a).getTime();
+                    b = new Date(b).getTime();
+                } else if (!isNaN(a) && !isNaN(b)) {
+                    a = parseFloat(a);
+                    b = parseFloat(b);
+                }
+
+                return isAscending ? (a > b ? 1 : -1) : (a < b ? 1 : -1);
+            });
+
+            table.setAttribute("data-sort-order", isAscending ? "desc" : "asc");
+
+            // Reattach sorted rows
+            rows.forEach(row => table.appendChild(row));
+        }
+    </script>
+</head>
+<body>
+    <h1>PM Summary</h1>
+    <table id="pmTable" data-sort-order="asc" class="min-w-full border-separate border-spacing-2 text-left">
+        <thead>
+            <tr class="bg-panel text-white">
+                <th onclick="sortTable(0, true)">BUNO</th>
+                <th onclick="sortTable(1)">Site</th>
+                <th onclick="sortTable(2)">Next Fly Date</th>
+                <th onclick="sortTable(3)">Last Fly Date</th>
+                <th onclick="sortTable(4)">Days to Next Fly</th>
+                <th onclick="sortTable(5)">Days Since Last Fly</th>
+                <th onclick="sortTable(6)">Consecutive Days in PM</th>
+                <th onclick="sortTable(7)">Other Mx Days</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in pm_summary %}
+            <tr class="borde-b border-gray-600 hover:bg-black-700">
+                <td class="px-4 py-2">
+                    <a href="{{ url_for('search_id', vehicle_id=row["BUNO"]) }}"
+                        class="underline text-accent hover:text-accent/80">
+                    {{ row["BUNO"]|int }}
+                    </a>
+                </td>
+                <td>{{ row.Site }}</td>
+                <td>{{ row.next_fly_date or "N/A" }}</td>
+                <td>{{ row.last_fly_date or "N/A" }}</td>
+                <td>{{ row.days_to_next_fly }}</td>
+                <td>{{ row.days_since_last_fly }}</td>
+                <td>{{ row.consecutive_days_pm }}</td>
+                <td>{{ row.non_pm_days }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+{% endblock %}

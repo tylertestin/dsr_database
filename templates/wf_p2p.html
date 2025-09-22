@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <title>WF P2P Dashboard</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Trebuchet MS', sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+            cursor: pointer; /* Make headers clickable */
+        }
+        th:hover {
+            background-color: #555;
+        }
+    </style>
+<body>
+    <h1>NASWF P2P</h1>
+    <p>2-week rolling average RFT</p>
+    <img src="data:image/png;base64,{{ plot_url }}" alt="Rolling Average Plot">
+</body>
+{% endblock %}

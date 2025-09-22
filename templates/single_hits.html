@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <title>Single AK0 Hits</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Trebuchet MS', sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+            cursor: pointer; /* Make headers clickable */
+        }
+        th {
+            background-color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Single AK0 Hits</h1>
+
+    <!-- Date input form -->
+    <form method="get" action="{{ url_for('single_hits') }}">
+        <label for="date">Select date:</label>
+        <input type="date" id="date" name="date" value="{{ selected_date }}">
+        <button type="submit">Apply</button>
+    </form>
+
+    <!-- Results table -->
+    {% if data %}
+    <table id="fleetTable" data-sort-order="asc" class="min-w-full border-separate border-spacing-2 text-left">
+        <thead>
+            <tr class="bg-panel text-white">
+                <th onclick="sortTable(0, true)" class="px-4 py-2">BUNO</th>
+                <th onclick="sortTable(1)" class="px-4 py-2">Site</th>
+                <th onclick="sortTable(2)" class="px-4 py-2">Status 1</th>
+                <th onclick="sortTable(3)" class="px-4 py-2">Status 2</th>
+                <th onclick="sortTable(4)" class="px-4 py-2">Last Fly</th>
+                <th onclick="sortTable(5)" class="px-4 py-2">Next Fly</th>
+                <th onclick="sortTable(6)" class="px-4 py-2">Outstanding AK0s</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            <tr>
+                <td><a href="{{ url_for('search_id', vehicle_id=row['BUNO']) }}">{{ row['BUNO'] }}</a></td>
+                <td>{{ row['site'] }}</td>
+                <td>{{ row['STATUS 1'] }}</td>
+                <td>{{ row['STATUS 2'] }}</td>
+                <td>{{ row['LAST FLY DATE'] or 'N/A' }}</td>
+                <td>{{ row['NEXT DATE FLOWN'] or 'N/A' }}</td>
+                <td>
+                    {% if row.tooltip and row.tooltip != "N/A" %}
+                    <span class="tooltip">
+                        1
+                        <span class="tooltip-text">{{ row.tooltip | safe }}</span>
+                        </span>
+                    {% else %}
+                        1
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>No single-hit AK0s found for {{ selected_date }}.</p>
+    {% endif %}
+</body>
+{% endblock %}

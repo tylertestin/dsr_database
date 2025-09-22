@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <title>Vehicle Results</title> 
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Trebuchet MS', sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: left;
+        }
+        th:hover {
+            background-color: #555;
+        }
+    </style> 
+</head>
+<body>
+    <h1>Results for BUNO: {{ vehicle_id }}</h1>
+    {% if rows %}
+        <table class="min-w-full border-separate border-spacing-2 text-left">
+            <tr class="bg-panel text-white">
+                <th>Date</th>
+                <th>Status 1</th>
+                <th>Status 2</th>
+                <th>Reason</th>
+                <th>Outstanding AK0s</th>
+                <th>LFD</th>
+                <th>NFD</th>
+            </tr>
+            {% for row in rows | sort(attribute="report_date", reverse=True) %}
+            <tr class="border-b border-gray-600 hover:bg-gray-700">
+                <td>{{ row["report_date"] }}</td>
+                <td>{{ row["STATUS 1"] }}</td>
+                <td>{{ row["STATUS 2"] }}</td>
+                <td>{{ row["REASON"] }}</td>
+                <td>
+                    {% if row["ak0_count"] > 0 %}
+                        <span class="tooltip">
+                            {{ row["ak0_count"] }}
+                            <span class="tooltip-text">{{ row["ak0_parts"] | safe }}</span>
+                        </span>
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+                <td>{{ row["LAST FLY DATE"] or "N/A" }}</td>
+                <td>{{ row["NEXT DATE FLOWN"] or "N/A" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>No records found.</p>
+    {% endif %}
+</body>
+{% endblock %}

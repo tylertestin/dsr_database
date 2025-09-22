@@ -1,0 +1,39 @@
+/* static/css/tailwind.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  table {
+    @apply border-separate;
+    @apply border-spacing-x-4 border-spacing-y-4;
+    @apply px-2 py-2;
+  };
+  body {
+    /* Make all text white by default */
+    @apply text-white;
+
+    /* Use Trebuchet MS or fallback to a generic sans-serif */
+    font-family: "Trebuchet MS", sans-serif;
+
+    line-height: 1.6;
+  };
+  h1, h2, h3 {
+    @apply leading-loose;
+  };
+  input {
+    @apply text-black bg-white border-gray-300 rounded px-4 py-2;
+  };
+}
+
+.bg-background {
+  background-color: #353e50; /* near-black */
+}
+
+.bg-panel {
+  background-color: #2A2D34; /* dark grey */
+}
+
+.bg-accent {
+  background-color: #4B86FF;
+}

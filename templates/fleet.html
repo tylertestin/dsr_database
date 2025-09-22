@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <title>Fleet Status</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Trebuchet MS', sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+            cursor: pointer; /* Make headers clickable */
+        }
+        th:hover {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fleet Status</h1>
+
+    {% if rows %}
+        <table id="fleetTable" data-sort-order="asc" class="min-w-full border-separate border-spacing-2 text-left">
+            <thead>
+                <tr class="bg-panel text-white">
+                    <th onclick="sortTable(0, true)" class="px-4 py-2">BUNO</th>
+                    <th onclick="sortTable(1)" class="px-4 py-2">Site</th>
+                    <th onclick="sortTable(2)" class="px-4 py-2">Current Status</th>
+                    <th onclick="sortTable(3)" class="px-4 py-2">Outstanding AK0s</th>
+                    <th onclick="sortTable(4)" class="px-4 py-2">Max EDD</th>
+                    <th onclick="sortTable(5)" class="px-4 py-2">Last Updated</th>
+                </tr>
+            </thead>
+            <tbody class="text-white">
+                {% for row in rows %}
+                <tr class="border-b border-gray-600 hover:bg-black-700">
+                    <td class="px-4 py-2">
+                        <a href="{{ url_for('search_id', vehicle_id=row["BUNO"]) }}"
+                            class="underline text-accent hover:text-accent/80">
+                        {{ row["BUNO"]|int }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-2">{{ row["vehicle_site"] }}</td>
+                    <td class="px-4 py-2 text-center">{{ row["STATUS 1"] }}</td>
+                    <td class="px-4 py-2">
+                        {% if row.requisition_count > 0 %}
+                        <span class="tooltip">
+                            {{ row["requisition_count"] }}
+                            <span class="tooltip-text">{{ row.part_list | safe }}</span>
+                        </span>
+                        {% else %}
+                            0
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2">{{ row["max_edd"] if row["max_edd"] else "N/A" }}</td>
+                    <td class="px-4 py-2">{{ row["report_date"] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No vehicles found.</p>
+    {% endif %}
+</body>
+{% endblock %}

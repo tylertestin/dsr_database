@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<head>
+    <title>Quad View</title>
+    <style>
+        body { background-color: #1e1e1e; color: white; }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+            height: 100vh;
+            padding: 20px;
+        }
+        .quadrant {
+            background-color: #2e2e2e;
+            border: 1px solid #444;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        h2 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <h1>Today's Summary</h1>
+    <div class="container">
+        <div class="quadrant">
+            <h2>Newly FMC: AC exiting repair</h2>
+            <ul>
+                {% for row in quad1 %}
+                    <li>
+                        BUNO: {{ row.BUNO }} | Date: {{ row.report_date }} | Status: {{ row["STATUS 1"] }} (prev: {{ row.prev_status }})
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="quadrant">
+            <h2>Next Up: AC with NFD of today</h2>
+            <ul>
+                {% for row in quad2 %}
+                    <li>
+                        BUNO: {{ row.BUNO }} | Next Date Flown: {{ row.NFD }}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="quadrant">
+            <h2>PO Changes: Parts with updated EDDs</h2>
+            <ul>
+                {% for row in quad3 %}
+                    <li>
+                        BUNO: {{ row.BUNO }} | Part: {{ row.Part }} | EDD: {{ row.EDD }} (prev: {{ row.prev_edd }}) | Date: {{ row.report_date }}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="quadrant">
+            <h2>New POs: Latest Backordered Parts</h2>
+            <ul>
+                {% for row in quad4 %}
+                    <li>
+                        BUNO: {{ row.BUNO }} | Part: {{ row.Part }} | EDD: {{ row.EDD }} | Date: {{ row.report_date }}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</body>
+{% endblock %}
