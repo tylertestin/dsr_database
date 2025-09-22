@@ -27,6 +27,32 @@ def get_db_connection():
     return conn
 
 
+def filter_unprocessed_files(excel_files, cursor):
+    """Return files whose modified time differs from what is recorded in ProcessedFiles."""
+    unprocessed = []
+    skipped_count = 0
+
+    for file_path in excel_files:
+        try:
+            last_modified = os.path.getmtime(file_path)
+        except OSError:
+            flash(f"Unable to access file: {os.path.basename(file_path)}")
+            continue
+
+        cursor.execute(
+            "SELECT last_modified FROM ProcessedFiles WHERE file_path = ?",
+            (file_path,),
+        )
+        row = cursor.fetchone()
+        if row and row["last_modified"] == last_modified:
+            skipped_count += 1
+            continue
+
+        unprocessed.append((file_path, last_modified))
+
+    return unprocessed, skipped_count
+
+
 # client = openai.OpenAI(api_key=openai.api_key)  # uses OPENAI_API_KEY env variable by default
 
 def generate_sql_with_chatgpt(natural_language_prompt):
@@ -353,12 +379,27 @@ def sharepoint_sync():
     if not excel_files:
         flash("No Excel files found in any SharePoint paths.")
         return redirect(url_for("home"))
-    
+
     conn = get_db_connection()
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ProcessedFiles (
+            file_path TEXT PRIMARY KEY,
+            last_modified REAL NOT NULL
+        );
+        """
+    )
 
     total_changes_before = conn.total_changes
 
-    for file_path in excel_files:
+    skipped_files = 0
+
+    unprocessed_files, skipped = filter_unprocessed_files(excel_files, cursor)
+    skipped_files += skipped
+
+    for file_path, last_modified in unprocessed_files:
         # Read the Excel file
         try:
             # --- A) Extract the date from the first row ---
@@ -383,8 +424,17 @@ def sharepoint_sync():
 
         try:
             df.to_sql("VehicleHistory", conn, if_exists="append", index=False)
-        except:
-            continue 
+        except Exception:
+            continue
+
+        cursor.execute(
+            """
+            INSERT INTO ProcessedFiles (file_path, last_modified)
+            VALUES (?, ?)
+            ON CONFLICT(file_path) DO UPDATE SET last_modified = excluded.last_modified
+            """,
+            (file_path, last_modified),
+        )
 
 
     # Hard-coded file paths to SharePoint-synced folders
@@ -406,9 +456,10 @@ def sharepoint_sync():
         flash("No Excel files found in any SharePoint paths.")
         return redirect(url_for("home"))
     
-    cursor = conn.cursor()
+    unprocessed_files, skipped = filter_unprocessed_files(excel_files, cursor)
+    skipped_files += skipped
 
-    for file_path in excel_files:
+    for file_path, last_modified in unprocessed_files:
         # Read the Excel file
         try:
             # --- A) Extract the date from the file name ---
@@ -452,8 +503,17 @@ def sharepoint_sync():
 
         try:
             df.to_sql("BackorderedParts", conn, if_exists="append", index=False)
-        except:
-            continue 
+        except Exception:
+            continue
+
+        cursor.execute(
+            """
+            INSERT INTO ProcessedFiles (file_path, last_modified)
+            VALUES (?, ?)
+            ON CONFLICT(file_path) DO UPDATE SET last_modified = excluded.last_modified
+            """,
+            (file_path, last_modified),
+        )
 
     total_changes_after = conn.total_changes
     imported_count = total_changes_after - total_changes_before
@@ -510,7 +570,10 @@ def sharepoint_sync():
     conn.commit()
     conn.close()
 
-    flash(f"SharePoint Sync complete. {imported_count} new records were added.")
+    flash(
+        f"SharePoint Sync complete. {imported_count} new records were added. "
+        f"Skipped {skipped_files} previously imported files."
+    )
 
     return redirect(url_for("home"))
 
