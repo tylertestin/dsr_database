@@ -22,10 +22,38 @@ app.secret_key = "supersecretkey"
 
 DATABASE = "vehicle_data.db"  # Path to your SQLite file
 
+
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def resolve_selected_sites(initial_sites=None, conn=None):
+    """Return the list of sites to filter against.
+
+    If the user hasn't selected any sites, fall back to all sites in the
+    database. When there are no sites in the database, return an empty list so
+    downstream queries can short-circuit gracefully.
+    """
+
+    selected = [site for site in (initial_sites or []) if site]
+    if selected:
+        return selected
+
+    needs_close = False
+    if conn is None:
+        conn = get_db_connection()
+        needs_close = True
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT site FROM Vehicles ORDER BY site")
+    sites = [row[0] for row in cursor.fetchall()]
+
+    if needs_close:
+        conn.close()
+
+    return sites
 
 
 def filter_unprocessed_files(excel_files, cursor):
@@ -83,27 +111,30 @@ def home():
     """
     Renders a simple homepage with a search form for Vehicle ID.
     """
-    selected_sites = request.args.getlist("site")
-   
-    # Query the database for the count of aircraft by status
     conn = get_db_connection()
     cursor = conn.cursor()
+    selected_sites = resolve_selected_sites(request.args.getlist("site"), conn=conn)
 
-    if not selected_sites:
-        cursor.execute("SELECT DISTINCT Site From Vehicles")
-        selected_sites = [row["Site"] for row in cursor.fetchall()]
+    where_clause = ""
+    params = []
+    if selected_sites:
+        placeholders = ", ".join(["?"] * len(selected_sites))
+        where_clause = f"WHERE v.site IN ({placeholders})"
+        params = selected_sites
 
-    cursor.execute("""
+    cursor.execute(f"""
         WITH LatestStatus AS (
             SELECT BUNO, [STATUS 1], MAX(report_date) as max_date
             FROM VehicleHistory
             WHERE BUNO IS NOT NULL
             GROUP BY BUNO
         )
-        SELECT COALESCE([STATUS 1], 'Other') as status, COUNT(*) as count
-        FROM LatestStatus
-        GROUP BY COALESCE(status, 'Other')
-    """)
+        SELECT COALESCE(ls.[STATUS 1], 'Other') as status, COUNT(*) as count
+        FROM LatestStatus ls
+        JOIN Vehicles v ON ls.BUNO = v.BUNO
+        {where_clause}
+        GROUP BY COALESCE(ls.[STATUS 1], 'Other')
+    """, params)
     data = cursor.fetchall()
     conn.close()
 
@@ -165,7 +196,7 @@ def search():
     """
     vehicle_id = request.form.get("vehicle_id")
 
-    selected_sites = request.args.getlist("site")
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
 
     conn = get_db_connection()
     df = pd.read_sql_query("""
@@ -200,7 +231,7 @@ def search_id(vehicle_id):
     GET-based route to fetch and display status history for a given vehicle ID.
     Allows direct links like /search/123456
     """
-    selected_sites = request.args.getlist("site")
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
 
     conn = get_db_connection()
     df = pd.read_sql_query("""
@@ -236,19 +267,17 @@ def fleet():
     Clicking on the status links to the full status history for that vehicle.
     """
     
-    selected_sites = request.args.getlist("site")
-    if selected_sites:
-        placeholders = ", ".join(["?"] * len(selected_sites))
-    else:
-        placeholders = ""
-                                 
     conn = get_db_connection()
     cur = conn.cursor()
+    selected_sites = resolve_selected_sites(request.args.getlist("site"), conn=conn)
 
-    rows = cur.execute(f"""
+    rows = []
+    if selected_sites:
+        placeholders = ", ".join(["?"] * len(selected_sites))
+        rows = cur.execute(f"""
         WITH LatestBackorderDate AS (
             SELECT BUNO, MAX(report_date) as max_date
-            From BackorderedParts            
+            From BackorderedParts
         ),
         FilteredBackorders AS (
             SELECT bp.BUNO, bp.Description, bp.Part,
@@ -288,16 +317,17 @@ def fleet():
 
 @app.route("/import_data", methods=["POST"])
 def import_data():
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
     directory_path = request.form.get("directory_path")
     if not directory_path or not os.path.isdir(directory_path):
         flash("Invalid directory path.")
-        return redirect(url_for("home"))
+        return redirect(url_for("home", site=selected_sites))
 
     # Gather all Excel files in the specified directory
     excel_files = glob.glob(os.path.join(directory_path, "*.xlsx"))
     if not excel_files:
         flash("No Excel files found in the directory.")
-        return redirect(url_for("home"))
+        return redirect(url_for("home", site=selected_sites))
 
     # Let's connect to our DB
     conn = get_db_connection()
@@ -352,7 +382,7 @@ def import_data():
     conn.close()
 
     flash(f"Import complete. {imported_count} new records were added.")
-    return redirect(url_for("home"))
+    return redirect(url_for("home", site=selected_sites))
 
 @app.route("/sharepoint_sync", methods=["POST"])
 def sharepoint_sync():
@@ -361,6 +391,7 @@ def sharepoint_sync():
     (representing local SharePoint-synced folders).
     Skips duplicates using (vehicle_id, record_date) constraint.
     """
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
     # Hard-coded file paths to SharePoint-synced folders
     sharepoint_paths = [
         r"C:\Users\TestinTyler(USSCA)\Boston Consulting Group, Federal\CNATRAJPPT - Documents\03 - Client data and briefs\DSRS NEW\NASWF DSRS NEW",
@@ -380,7 +411,7 @@ def sharepoint_sync():
 
     if not excel_files:
         flash("No Excel files found in any SharePoint paths.")
-        return redirect(url_for("home"))
+        return redirect(url_for("home", site=selected_sites))
 
     conn = get_db_connection()
 
@@ -579,36 +610,32 @@ def sharepoint_sync():
         f"Skipped {skipped_files} previously imported files."
     )
 
-    return redirect(url_for("home"))
+    return redirect(url_for("home", site=selected_sites))
 
 @app.route("/pm_summary")
 def pm_summary():
-    selected_sites = request.args.getlist("site")
-    if selected_sites:
-        placeholders = ", ".join(["?"] * len(selected_sites))
-    else:
-        placeholders = ""
-    
-    # Query the database
     conn = get_db_connection()
+    selected_sites = resolve_selected_sites(request.args.getlist("site"), conn=conn)
+
+    placeholders = ""
+    where_clause = ""
+    params = []
     if selected_sites:
         placeholders = ", ".join(["?"] * len(selected_sites))
         where_clause = f"WHERE v.site IN ({placeholders})"
-        df = pd.read_sql_query(f"""
+        params = selected_sites
+
+    df = pd.read_sql_query(
+        f"""
             SELECT vh.BUNO, v.site, vh.[STATUS 1], vh.report_date, vh.[NEXT DATE FLOWN], vh.[LAST FLY DATE]
             FROM VehicleHistory vh
             JOIN Vehicles v ON vh.BUNO = v.BUNO
             {where_clause}
             ORDER BY vh.BUNO, vh.report_date
-        """, conn, params=selected_sites)
-    else:
-        df = pd.read_sql_query("""
-            SELECT vh.BUNO, v.site, vh.[STATUS 1], vh.report_date, vh.[NEXT DATE FLOWN], vh.[LAST FLY DATE]
-            FROM VehicleHistory vh
-            JOIN Vehicles v ON vh.
-            BUNO = v.BUNO
-            ORDER BY vh.BUNO, vh.report_date
-        """, conn)
+        """,
+        conn,
+        params=params or None,
+    )
 
     # Ensure proper data types
     df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce")
@@ -668,13 +695,28 @@ def pm_summary():
 
 @app.route("/p2p")
 def p2p():
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
+
     conn = get_db_connection()
-    df = pd.read_sql_query("""
-        SELECT report_date, [STATUS 1], [STATUS 2]
-        FROM VehicleHistory
-        WHERE [STATUS 1] IN ('FMC', 'DET') 
-          AND [STATUS 2] IN ('UP', 'DET')
-    """, conn)
+    where_clause = ""
+    params = []
+    if selected_sites:
+        placeholders = ", ".join(["?"] * len(selected_sites))
+        where_clause = f"AND v.site IN ({placeholders})"
+        params = selected_sites
+
+    df = pd.read_sql_query(
+        f"""
+        SELECT vh.report_date, vh.[STATUS 1], vh.[STATUS 2]
+        FROM VehicleHistory vh
+        JOIN Vehicles v ON vh.BUNO = v.BUNO
+        WHERE vh.[STATUS 1] IN ('FMC', 'DET')
+          AND vh.[STATUS 2] IN ('UP', 'DET')
+          {where_clause}
+    """,
+        conn,
+        params=params or None,
+    )
     conn.close()
 
     # Convert report_date to datetime
@@ -733,20 +775,37 @@ def p2p():
     plot_url = base64.b64encode(img.getvalue()).decode("utf8")
     plt.close()
 
-    return render_template("p2p.html", plot_url=plot_url)
+    return render_template("p2p.html", plot_url=plot_url, selected_sites=selected_sites)
 
 
 @app.route("/wf_p2p")
 def wf_p2p():
+    initial_sites = request.args.getlist("site")
+    if not initial_sites:
+        initial_sites = ["NASWF"]
+
+    selected_sites = resolve_selected_sites(initial_sites)
+
     conn = get_db_connection()
-    df = pd.read_sql_query("""
+    where_clause = ""
+    params = []
+    if selected_sites:
+        placeholders = ", ".join(["?"] * len(selected_sites))
+        where_clause = f"AND v.site IN ({placeholders})"
+        params = selected_sites
+
+    df = pd.read_sql_query(
+        f"""
         SELECT vh.report_date
         FROM VehicleHistory vh
         JOIN Vehicles v ON vh.BUNO = v.BUNO
-        WHERE v.site = 'NASWF'
-        AND vh.[STATUS 1] IN ('FMC', 'DET')
-        AND vh.[Status 2] IN ('UP', 'DET')
-    """, conn)
+        WHERE vh.[STATUS 1] IN ('FMC', 'DET')
+          AND vh.[Status 2] IN ('UP', 'DET')
+          {where_clause}
+    """,
+        conn,
+        params=params or None,
+    )
     conn.close()
 
     # Convert report_date to datetime
@@ -805,7 +864,7 @@ def wf_p2p():
     plot_url = base64.b64encode(img.getvalue()).decode("utf8")
     plt.close()
 
-    return render_template("wf_p2p.html", plot_url=plot_url)
+    return render_template("wf_p2p.html", plot_url=plot_url, selected_sites=selected_sites)
 
 @app.route("/single_hits", methods=["GET"])
 def single_hits():
@@ -813,8 +872,18 @@ def single_hits():
     if not selected_date:
         selected_date = datetime.today().strftime("%Y-%m-%d")
 
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
+
     conn = get_db_connection()
-    df = pd.read_sql_query("""
+    site_clause = ""
+    params = [selected_date, selected_date]
+    if selected_sites:
+        placeholders = ", ".join(["?"] * len(selected_sites))
+        site_clause = f"WHERE v.site IN ({placeholders})"
+        params.extend(selected_sites)
+
+    df = pd.read_sql_query(
+        f"""
         WITH OneAK0Bunos AS (
             SELECT BUNO
             FROM BackorderedParts
@@ -849,8 +918,12 @@ def single_hits():
             ON bp.BUNO = vh.BUNO
             AND bp.[Sub Priority] = 'AK0'
             AND DATE(bp.report_date) = DATE(?)
+        {site_clause}
         ORDER BY vh.BUNO
-    """, conn, params=[selected_date, selected_date])
+    """,
+        conn,
+        params=params,
+    )
     conn.close()
 
     # Group parts for tooltip (one row per BUNO)
@@ -870,23 +943,42 @@ def single_hits():
         lambda row: f"{row['ak0_part']}; EDD: {row['ak0_edd']}" if row["ak0_part"] else "N/A", axis=1
     )
 
-    return render_template("single_hits.html", data=grouped.to_dict(orient="records"), selected_date=selected_date)
+    return render_template(
+        "single_hits.html",
+        data=grouped.to_dict(orient="records"),
+        selected_date=selected_date,
+        selected_sites=selected_sites,
+    )
 
 @app.route("/quad")
 def quad():
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
     conn = get_db_connection()
-    
+
+    placeholders = ""
+    site_where = ""
+    site_and = ""
+    params = []
+    if selected_sites:
+        placeholders = ", ".join(["?"] * len(selected_sites))
+        site_where = f"WHERE v.site IN ({placeholders})"
+        site_and = f"AND v.site IN ({placeholders})"
+        params = selected_sites
+
     # Quadrant 1
-    q1 = pd.read_sql_query("""
+    q1 = pd.read_sql_query(
+        f"""
         WITH OrderedHistory AS (
-            SELECT 
+            SELECT
                 vh.BUNO,
                 vh.report_date,
                 vh.[STATUS 1],
                 LAG(vh.[STATUS 1]) OVER (PARTITION BY vh.BUNO ORDER BY vh.report_date DESC) AS prev_status
             FROM VehicleHistory vh
+            JOIN Vehicles v ON vh.BUNO = v.BUNO
+            {site_where}
         )
-        SELECT 
+        SELECT
             BUNO,
             strftime('%Y-%m-%d', report_date) AS report_date,
             [STATUS 1],
@@ -895,10 +987,14 @@ def quad():
         WHERE [STATUS 1] = 'FMC'
           AND (prev_status IS NOT NULL AND prev_status <> 'FMC')
         ORDER BY report_date DESC;
-    """, conn)
-    
+    """,
+        conn,
+        params=params or None,
+    )
+
     # Quadrant 2
-    q2 = pd.read_sql_query("""
+    q2 = pd.read_sql_query(
+        f"""
         WITH LatestHistory AS (
             SELECT vh.*
             FROM VehicleHistory vh
@@ -906,6 +1002,8 @@ def quad():
                 SELECT MAX(report_date) AS max_date
                 FROM VehicleHistory
             ) latest ON vh.report_date = latest.max_date
+            JOIN Vehicles v ON vh.BUNO = v.BUNO
+            {site_where}
         )
         SELECT
             BUNO,
@@ -914,12 +1012,16 @@ def quad():
         FROM LatestHistory
         WHERE [NEXT DATE FLOWN] IS NOT NULL AND strftime('%Y-%m-%d', [NEXT DATE FLOWN]) = strftime('%Y-%m-%d', report_date)
         ORDER BY report_date DESC;
-    """, conn)
-    
+    """,
+        conn,
+        params=params or None,
+    )
+
     # Quadrant 3
-    q3 = pd.read_sql_query("""
+    q3 = pd.read_sql_query(
+        f"""
         WITH OrderedParts AS (
-            SELECT 
+            SELECT
                 bp.BUNO,
                 bp.Part,
                 bp.Description,
@@ -927,9 +1029,11 @@ def quad():
                 bp.report_date,
                 LAG(bp.EDD) OVER (PARTITION BY bp.BUNO, bp.Part ORDER BY bp.report_date DESC) AS prev_edd
             FROM BackorderedParts bp
+            JOIN Vehicles v ON bp.BUNO = v.BUNO
             WHERE bp.[Sub Priority] = 'AK0'
+            {site_and}
         )
-        SELECT 
+        SELECT
             BUNO,
             Part,
             Description,
@@ -940,10 +1044,14 @@ def quad():
         WHERE prev_edd IS NOT NULL
           AND EDD <> prev_edd
         ORDER BY report_date DESC;
-    """, conn)
-    
+    """,
+        conn,
+        params=params or None,
+    )
+
     # Quadrant 4
-    q4 = pd.read_sql_query("""
+    q4 = pd.read_sql_query(
+        f"""
         WITH LatestBackorderDate AS (
             SELECT MAX(report_date) AS max_date
             FROM BackorderedParts
@@ -952,9 +1060,11 @@ def quad():
             SELECT bp.*
             FROM BackorderedParts bp
             JOIN LatestBackorderDate lbd ON bp.report_date = lbd.max_date
+            JOIN Vehicles v ON bp.BUNO = v.BUNO
             WHERE bp.[Sub Priority] = 'AK0'
+            {site_and}
         )
-        SELECT 
+        SELECT
             BUNO,
             Part,
             Description,
@@ -962,7 +1072,10 @@ def quad():
             strftime('%Y-%m-%d', report_date) AS report_date
         FROM LatestBackorderedParts
         ORDER BY BUNO;
-    """, conn)
+    """,
+        conn,
+        params=params or None,
+    )
     
     conn.close()
     
@@ -972,7 +1085,14 @@ def quad():
     quad3 = q3.to_dict(orient="records")
     quad4 = q4.to_dict(orient="records")
     
-    return render_template("quad.html", quad1=quad1, quad2=quad2, quad3=quad3, quad4=quad4)
+    return render_template(
+        "quad.html",
+        quad1=quad1,
+        quad2=quad2,
+        quad3=quad3,
+        quad4=quad4,
+        selected_sites=selected_sites,
+    )
 
 @app.route("/sql_search", methods=["GET", "POST"])
 def custom_sql():
@@ -1012,6 +1132,8 @@ def custom_sql():
                 if conn is not None:
                     conn.close()
 
+    selected_sites = resolve_selected_sites(request.args.getlist("site"))
+
     return render_template(
         "custom_sql.html",
         query_text=query_text,
@@ -1019,6 +1141,7 @@ def custom_sql():
         columns=columns,
         error=error,
         debug_details=debug_details,
+        selected_sites=selected_sites,
     )
 
 if __name__ == "__main__":

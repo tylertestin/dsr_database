@@ -55,8 +55,9 @@
   </div>
 
     <nav class="bg-panel p-4 flex items-center justify-between">
+      {% set current_sites = selected_sites | default([]) %}
       <div class="flex items-center">
-        <a href="{{ url_for('home') }}" class="flex items-center text-white hover:underline">
+        <a href="{{ url_for('home', site=current_sites) }}" class="flex items-center text-white hover:underline">
           <img src="{{ url_for('static', filename='img/T6_logo.png') }}" class="h-8 w-10 mr-2">
           <span class="text-xl font-bold">T-6 DSR</span>
         </a>
@@ -65,21 +66,21 @@
     <!-- Site Filter Checkboxes -->
     <form id="site-filter-form" action="{{ request.path }}" method="GET" class="flex items-center space-x-4">
       <label class="text-white">
-        <input type="checkbox" name="site" value="NASCC" {% if 'NASCC' in selected_sites %}checked{% endif %}> NASCC
+        <input type="checkbox" name="site" value="NASCC" {% if 'NASCC' in current_sites %}checked{% endif %}> NASCC
       </label>
       <label class="text-white">
-        <input type="checkbox" name="site" value="NASWF" {% if 'NASWF' in selected_sites %}checked{% endif %}> NASWF
+        <input type="checkbox" name="site" value="NASWF" {% if 'NASWF' in current_sites %}checked{% endif %}> NASWF
       </label>
       <label class="text-white">
-        <input type="checkbox" name="site" value="NASP" {% if 'NASP' in selected_sites %}checked{% endif %}> NASP
+        <input type="checkbox" name="site" value="NASP" {% if 'NASP' in current_sites %}checked{% endif %}> NASP
       </label>
       <button type="submit" class="bg-accent hover:bg-accent/80 text-white px-4 py-2 rounded">Filter</button>
     </form>
 
     <div class="flex items-center space-x-4">
-      <a href="{{ url_for('custom_sql') }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Search</a>
-      <a href="{{ url_for('quad') }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Summary</a>
-      <a href="{{ url_for('fleet', site=request.args.getlist('site')) }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Fleet</a>
+      <a href="{{ url_for('custom_sql', site=current_sites) }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Search</a>
+      <a href="{{ url_for('quad', site=current_sites) }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Summary</a>
+      <a href="{{ url_for('fleet', site=current_sites) }}" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">Fleet</a>
       <button onclick="toggleDrawer()" class="px-3 py-2 hover:bg-accent/80 transition-colors rounded">HUD</button>
     </div>
   </nav>

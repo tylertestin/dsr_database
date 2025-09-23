@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% set current_sites = selected_sites | default([]) %}
 <head>
     <title>Single AK0 Hits</title>
     <style>
@@ -31,7 +32,7 @@
     <h1>Single AK0 Hits</h1>
 
     <!-- Date input form -->
-    <form method="get" action="{{ url_for('single_hits') }}">
+    <form method="get" action="{{ url_for('single_hits', site=current_sites) }}">
         <label for="date">Select date:</label>
         <input type="date" id="date" name="date" value="{{ selected_date }}">
         <button type="submit">Apply</button>
@@ -54,7 +55,7 @@
         <tbody>
             {% for row in data %}
             <tr>
-                <td><a href="{{ url_for('search_id', vehicle_id=row['BUNO']) }}">{{ row['BUNO'] }}</a></td>
+                <td><a href="{{ url_for('search_id', vehicle_id=row['BUNO'], site=current_sites) }}">{{ row['BUNO'] }}</a></td>
                 <td>{{ row['site'] }}</td>
                 <td>{{ row['STATUS 1'] }}</td>
                 <td>{{ row['STATUS 2'] }}</td>

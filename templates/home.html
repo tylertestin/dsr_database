@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% set current_sites = selected_sites | default([]) %}
 <h1 class="text-2xl font-bold mb-4 text-white leading-loose">Aircraft Status Snapshot</h1>
 <!-- Display the bar chart -->
 <div>
@@ -7,20 +8,20 @@
 </div>
 <hr>
 <h2 class="text-2xl font-bold mb-4 text-white leading-loose">Search Vehicle Status</h1>
-<form action="{{ url_for('search') }}" method="POST">
+<form action="{{ url_for('search', site=current_sites) }}" method="POST">
     <label for="vehicle_id">BUNO:</label>
     <input type="text" name="vehicle_id" id="vehicle_id" class="bg-white text-black border-gray-300 rounded px-4 py-2 w-50" required>
     <button type="submit" class="bg-accent hover:bg-accent/80 text-white px-4 py-2 mb-12 rounded transition-colors">Search</button>
 </form>
 
 <h3 class="text-2xl font-bold mb-4 text-white leading-loose">Import Excel Data</h2>
-<form action="{{ url_for('import_data') }}" method="POST">
+<form action="{{ url_for('import_data', site=current_sites) }}" method="POST">
     <label for="directory_path">Directory Path:</label>
     <input type="text" name="directory_path" id="directory_path" class="bg-white text-black border-gray-300 rounded px-4 py-2 w-200" placeholder="e.g. C:\Users\Me\ExcelFiles" required>
     <button type="submit" class="bg-accent hover:bg-accent/80 text-white px-4 py-2 mb-4 rounded transition-colors">Import Data</button>
 </form>
 
-<form action="{{ url_for('sharepoint_sync') }}" method="POST">
+<form action="{{ url_for('sharepoint_sync', site=current_sites) }}" method="POST">
     <button type="submit" class="bg-accent hover:bg-accent/80 text-white px-4 py-2 rounded transition-colors">Sync SharePoint Files</button>
 </form>
 
