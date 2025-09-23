@@ -80,7 +80,7 @@ def get_vehicle_status_history(db_path, vehicle_id):
 
     # Prepare the query
     query = """
-    SELECT report_date, "STATUS 1"
+    SELECT report_date, [STATUS 1]
     FROM VehicleHistory
     WHERE BUNO = ?
     ORDER BY report_date;
