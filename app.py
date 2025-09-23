@@ -95,12 +95,12 @@ def home():
 
     cursor.execute("""
         WITH LatestStatus AS (
-            SELECT BUNO, "STATUS 1", MAX(report_date) as max_date
+            SELECT BUNO, [STATUS 1], MAX(report_date) as max_date
             FROM VehicleHistory
             WHERE BUNO IS NOT NULL
             GROUP BY BUNO
         )
-        SELECT COALESCE("STATUS 1", 'Other') as status, COUNT(*) as count
+        SELECT COALESCE([STATUS 1], 'Other') as status, COUNT(*) as count
         FROM LatestStatus
         GROUP BY COALESCE(status, 'Other')
     """)
@@ -325,6 +325,7 @@ def import_data():
 
             # --- B) Read the actual data (skip row #0) ---
             df = pd.read_excel(file_path, sheet_name="AC Status", header=1, usecols="A:R")
+            df.columns = [col.strip() if isinstance(col, str) else col for col in df.columns]
             
             # --- C) Add a column for the date ---
             df['report_date'] = report_date
@@ -409,6 +410,7 @@ def sharepoint_sync():
 
             # --- B) Read the actual data (skip row #0) ---
             df = pd.read_excel(file_path, sheet_name="AC Status", header=1, usecols="A:R")
+            df.columns = [col.strip() if isinstance(col, str) else col for col in df.columns]
             
             # --- C) Add a column for the date ---
             df['report_date'] = report_date
@@ -488,6 +490,7 @@ def sharepoint_sync():
 
             # --- B) Read the actual data (skip row #0) ---
             df = pd.read_excel(file_path, sheet_name="Outstanding Requisitions", header=0)
+            df.columns = [col.strip() if isinstance(col, str) else col for col in df.columns]
 
             if "Vendor / Transfer From" not in df.columns:
                 df["Vendor / Transfer From"] = None
@@ -547,10 +550,10 @@ def sharepoint_sync():
         CREATE TABLE IF NOT EXISTS VehicleHistory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             BUNO TEXT NOT NULL,
-            "STATUS 1" TEXT NOT NULL,
+            [STATUS 1] TEXT NOT NULL,
             report_date DATE NOT NULL,
-            "NEXT DATE FLOWN" DATE,
-            "LAST FLY DATE" DATE,
+            [NEXT DATE FLOWN] DATE,
+            [LAST FLY DATE] DATE,
             FOREIGN KEY (BUNO) REFERENCES Vehicles(BUNO)
         );
     """
@@ -904,12 +907,12 @@ def quad():
                 FROM VehicleHistory
             ) latest ON vh.report_date = latest.max_date
         )
-        SELECT 
+        SELECT
             BUNO,
             strftime('%Y-%m-%d', report_date) AS report_date,
-            strftime('%Y-%m-%d', "NEXT DATE FLOWN") AS NFD
+            strftime('%Y-%m-%d', [NEXT DATE FLOWN]) AS NFD
         FROM LatestHistory
-        WHERE "NEXT DATE FLOWN" IS NOT NULL AND strftime('%Y-%m-%d', "NEXT DATE FLOWN") = strftime('%Y-%m-%d', report_date)
+        WHERE [NEXT DATE FLOWN] IS NOT NULL AND strftime('%Y-%m-%d', [NEXT DATE FLOWN]) = strftime('%Y-%m-%d', report_date)
         ORDER BY report_date DESC;
     """, conn)
     
