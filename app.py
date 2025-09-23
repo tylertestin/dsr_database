@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import sqlite3
 import pandas as pd
 import os, glob
+import traceback
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
@@ -976,24 +977,46 @@ def custom_sql():
     columns = []
     query_text = ""
     error = None
+    debug_details = None
+    conn = None
 
     if request.method == "POST":
         query_text = request.form.get("sql_query", "").strip()
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(query_text)
-            if query_text.lower().startswith("select"):
-                columns = [desc[0] for desc in cursor.description]
-                results = cursor.fetchall()
-            else:
-                conn.commit()
-        except Exception as e:
-            error = str(e)
-        finally:
-            conn.close()
+        if query_text:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(query_text)
+                if query_text.lower().startswith("select"):
+                    columns = [desc[0] for desc in cursor.description]
+                    results = cursor.fetchall()
+                else:
+                    conn.commit()
+                    debug_details = {
+                        "rowcount": cursor.rowcount,
+                        "lastrowid": getattr(cursor, "lastrowid", None),
+                    }
+            except Exception as e:
+                error = {
+                    "type": e.__class__.__name__,
+                    "message": str(e),
+                    "query": query_text,
+                }
+                debug_details = {
+                    "traceback": traceback.format_exc(),
+                }
+            finally:
+                if conn is not None:
+                    conn.close()
 
-    return render_template("custom_sql.html", query_text=query_text, results=results, columns=columns, error=error)
+    return render_template(
+        "custom_sql.html",
+        query_text=query_text,
+        results=results,
+        columns=columns,
+        error=error,
+        debug_details=debug_details,
+    )
 
 if __name__ == "__main__":
     # For local dev usage
