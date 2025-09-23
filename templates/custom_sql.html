@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% set current_sites = selected_sites | default([]) %}
 <head>
     <title>SQL Search Console</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" integrity="sha512-9Sh4D0L07H6sMj9i+dHy7UZff6pimdrdJS5VO7v0TP+L44WPpM5Su0b4m8aKv6kEPitnG0P9UwSSfDPgm/S4Vg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -100,7 +101,7 @@
 <body>
     <div class="sql-console">
         <h1>SQL Query Search</h1>
-        <form method="post">
+        <form method="post" action="{{ url_for('custom_sql', site=current_sites) }}">
             <div class="editor-container">
                 <textarea id="sql-editor" name="sql_query" placeholder="Enter SQL query here...">{{ query_text }}</textarea>
             </div>

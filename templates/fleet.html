@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% set current_sites = selected_sites | default([]) %}
 <head>
     <title>Fleet Status</title>
     <style>
@@ -45,7 +46,7 @@
                 {% for row in rows %}
                 <tr class="border-b border-gray-600 hover:bg-black-700">
                     <td class="px-4 py-2">
-                        <a href="{{ url_for('search_id', vehicle_id=row["BUNO"]) }}"
+                        <a href="{{ url_for('search_id', vehicle_id=row["BUNO"], site=current_sites) }}"
                             class="underline text-accent hover:text-accent/80">
                         {{ row["BUNO"]|int }}
                         </a>
