@@ -10,22 +10,37 @@
             color: white;
             font-family: 'Trebuchet MS', sans-serif;
         }
+        .sql-console {
+            max-width: 1080px;
+            margin: 0 auto;
+        }
         .editor-container {
             border: 1px solid #2a2d3e;
             border-radius: 6px;
             overflow: hidden;
             margin-bottom: 1rem;
+            background-color: #1e1e2e;
         }
         .CodeMirror {
             height: auto;
-            min-height: 140px;
+            min-height: 220px;
+            width: 100%;
             background-color: #1e1e2e;
-            color: #e5e5f0;
-            font-size: 14px;
+            color: #f3f4f6;
+            font-size: 15px;
+            line-height: 1.55;
         }
         .CodeMirror-gutters {
             background-color: #1b1d2b;
             border-right: 1px solid #2a2d3e;
+        }
+        textarea#sql-editor {
+            width: 100%;
+            min-height: 220px;
+            background-color: #1e1e2e;
+            color: #f3f4f6;
+            font-size: 15px;
+            line-height: 1.55;
         }
         button[type="submit"] {
             background-color: #2563eb;
@@ -83,13 +98,14 @@
     </style>
 </head>
 <body>
-    <h1>SQL Query Search</h1>
-    <form method="post">
-        <div class="editor-container">
-            <textarea id="sql-editor" name="sql_query" placeholder="Enter SQL query here...">{{ query_text }}</textarea>
-        </div>
-        <button type="submit">Run Query</button>
-    </form>
+    <div class="sql-console">
+        <h1>SQL Query Search</h1>
+        <form method="post">
+            <div class="editor-container">
+                <textarea id="sql-editor" name="sql_query" placeholder="Enter SQL query here...">{{ query_text }}</textarea>
+            </div>
+            <button type="submit">Run Query</button>
+        </form>
 
     {% if error %}
         <div class="error-card">
@@ -136,6 +152,9 @@
     {% elif request.method == "POST" and not error %}
         <p>No results returned.</p>
     {% endif %}
+
+    </div>
+
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" integrity="sha512-LVqz74NWG+8GjM96IlzqJaoz1BZADps6oaqaUZ3VRGS97y5n8VR1nT1VxBtZEZK9SPFqh3DXD8tvevzfTGbFUg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js" integrity="sha512-v6jaqgI0K9r9zMB2J1S4IM1F1uIBHIFkDFU7Qbu4zHxKCXY4ghEua5+YGLFHSwH617AZP55A+Wyhd+OVO4eeFw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
