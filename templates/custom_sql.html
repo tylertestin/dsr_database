@@ -2,21 +2,42 @@
 {% block content %}
 <head>
     <title>SQL Search Console</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" integrity="sha512-9Sh4D0L07H6sMj9i+dHy7UZff6pimdrdJS5VO7v0TP+L44WPpM5Su0b4m8aKv6kEPitnG0P9UwSSfDPgm/S4Vg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" integrity="sha512-8gxjA2iJhVz5Q4+LnyV76OiBfssmjXLnDMgh+tozlpJTTp1nVJ/7PaEQifImrf3FCy/hspn4BW2ducMBLg3TrA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         body {
-            background-color: black;
+            background-color: #0f111a;
             color: white;
             font-family: 'Trebuchet MS', sans-serif;
         }
-        textarea {
-            width: 100%;
-            height: 100px;
-            font-family: monospace;
+        .editor-container {
+            border: 1px solid #2a2d3e;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        .CodeMirror {
+            height: auto;
+            min-height: 140px;
+            background-color: #1e1e2e;
+            color: #e5e5f0;
             font-size: 14px;
-            background-color: #1e1e1e;
+        }
+        .CodeMirror-gutters {
+            background-color: #1b1d2b;
+            border-right: 1px solid #2a2d3e;
+        }
+        button[type="submit"] {
+            background-color: #2563eb;
+            border: none;
             color: white;
-            border: 1px solid #555;
-            padding: 10px;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button[type="submit"]:hover {
+            background-color: #1d4ed8;
         }
         table {
             margin-top: 20px;
@@ -30,21 +51,67 @@
         th {
             background-color: #333;
         }
-        .error {
-            color: red;
-            margin-top: 10px;
+        .error-card {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px solid #dc2626;
+            background-color: rgba(220, 38, 38, 0.1);
+            border-radius: 6px;
+        }
+        .error-card h2 {
+            margin-top: 0;
+            color: #fca5a5;
+        }
+        .error-card pre {
+            background: rgba(15, 17, 26, 0.6);
+            padding: 0.75rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            color: #f9fafb;
+        }
+        .debug-card {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px solid #3b82f6;
+            background-color: rgba(37, 99, 235, 0.1);
+            border-radius: 6px;
+        }
+        .debug-card h2 {
+            margin-top: 0;
+            color: #bfdbfe;
         }
     </style>
 </head>
 <body>
     <h1>SQL Query Search</h1>
     <form method="post">
-        <textarea name="sql_query" placeholder="Enter SQL query here...">{{ query_text }}</textarea><br>
+        <div class="editor-container">
+            <textarea id="sql-editor" name="sql_query" placeholder="Enter SQL query here...">{{ query_text }}</textarea>
+        </div>
         <button type="submit">Run Query</button>
     </form>
 
     {% if error %}
-        <div class="error">{{ error }}</div>
+        <div class="error-card">
+            <h2>{{ error.type }} encountered</h2>
+            <p>{{ error.message }}</p>
+            <h3>Query</h3>
+            <pre>{{ error.query }}</pre>
+            {% if debug_details and debug_details.traceback %}
+                <h3>Traceback</h3>
+                <pre>{{ debug_details.traceback }}</pre>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if debug_details and not error %}
+        <div class="debug-card">
+            <h2>Execution details</h2>
+            <p><strong>Rows affected:</strong> {{ debug_details.rowcount }}</p>
+            {% if debug_details.lastrowid %}
+                <p><strong>Last inserted row id:</strong> {{ debug_details.lastrowid }}</p>
+            {% endif %}
+        </div>
     {% endif %}
 
     {% if results %}
@@ -69,5 +136,30 @@
     {% elif request.method == "POST" and not error %}
         <p>No results returned.</p>
     {% endif %}
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" integrity="sha512-LVqz74NWG+8GjM96IlzqJaoz1BZADps6oaqaUZ3VRGS97y5n8VR1nT1VxBtZEZK9SPFqh3DXD8tvevzfTGbFUg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js" integrity="sha512-v6jaqgI0K9r9zMB2J1S4IM1F1uIBHIFkDFU7Qbu4zHxKCXY4ghEua5+YGLFHSwH617AZP55A+Wyhd+OVO4eeFw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const textarea = document.getElementById('sql-editor');
+            if (textarea) {
+                CodeMirror.fromTextArea(textarea, {
+                    mode: 'text/x-sql',
+                    lineNumbers: true,
+                    matchBrackets: true,
+                    autofocus: true,
+                    theme: 'material-darker',
+                    indentWithTabs: false,
+                    smartIndent: true,
+                    extraKeys: {
+                        'Ctrl-Enter': function (cm) {
+                            cm.save();
+                            textarea.form.submit();
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 {% endblock %}
