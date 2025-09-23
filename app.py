@@ -23,6 +23,62 @@ app.secret_key = "supersecretkey"
 DATABASE = "vehicle_data.db"  # Path to your SQLite file
 
 
+_IDENTIFIER_CACHE = None
+
+
+def _quote_identifier(identifier):
+    return f'"{identifier.replace("\"", "\"\"")}"'
+
+
+def _needs_quoting(identifier):
+    return bool(re.search(r"[^A-Za-z0-9_]", identifier))
+
+
+def _get_problematic_identifier_map(conn):
+    global _IDENTIFIER_CACHE
+    if _IDENTIFIER_CACHE is not None:
+        return _IDENTIFIER_CACHE
+
+    column_map = {}
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = [row[0] for row in cursor.fetchall()]
+
+    for table_name in tables:
+        if table_name.startswith("sqlite_"):
+            continue
+
+        pragma_query = f"PRAGMA table_info({_quote_identifier(table_name)})"
+        for column in cursor.execute(pragma_query):
+            column_name = column[1]
+            if _needs_quoting(column_name):
+                column_map[column_name.casefold()] = column_name
+
+    _IDENTIFIER_CACHE = column_map
+    return _IDENTIFIER_CACHE
+
+
+def normalize_sql_query(query_text, conn):
+    """Return a version of the query with string-literal identifiers corrected."""
+
+    column_map = _get_problematic_identifier_map(conn)
+    if not column_map:
+        return query_text, {}
+
+    replacements = {}
+
+    def replace_literal(match):
+        literal = match.group(1)
+        canonical = column_map.get(literal.casefold())
+        if canonical:
+            replacements[literal] = canonical
+            return f'"{canonical}"'
+        return match.group(0)
+
+    normalized_query = re.sub(r"'([^']+)'", replace_literal, query_text)
+    return normalized_query, replacements
+
+
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
@@ -1106,27 +1162,48 @@ def custom_sql():
     if request.method == "POST":
         query_text = request.form.get("sql_query", "").strip()
         if query_text:
+            original_query = query_text
+            normalization_details = {}
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute(query_text)
-                if query_text.lower().startswith("select"):
+                normalized_query, identifier_corrections = normalize_sql_query(query_text, conn)
+                query_to_execute = normalized_query
+
+                if identifier_corrections:
+                    normalization_details["identifier_corrections"] = identifier_corrections
+                if normalized_query != query_text:
+                    normalization_details["normalized_query"] = normalized_query
+
+                cursor.execute(query_to_execute)
+
+                if query_to_execute.lstrip().lower().startswith("select"):
                     columns = [desc[0] for desc in cursor.description]
                     results = cursor.fetchall()
+                    debug_details = dict(normalization_details)
+                    debug_details["returned_rows"] = len(results)
                 else:
                     conn.commit()
-                    debug_details = {
-                        "rowcount": cursor.rowcount,
-                        "lastrowid": getattr(cursor, "lastrowid", None),
-                    }
+                    debug_details = dict(normalization_details)
+                    debug_details["rowcount"] = cursor.rowcount
+                    lastrowid = getattr(cursor, "lastrowid", None)
+                    if lastrowid:
+                        debug_details["lastrowid"] = lastrowid
+
+                if "normalized_query" in normalization_details:
+                    query_text = normalization_details["normalized_query"]
+                debug_details = debug_details or None
             except Exception as e:
                 error = {
                     "type": e.__class__.__name__,
                     "message": str(e),
-                    "query": query_text,
+                    "query": original_query,
                 }
+                if normalization_details.get("normalized_query"):
+                    error["normalized_query"] = normalization_details["normalized_query"]
                 debug_details = {
                     "traceback": traceback.format_exc(),
+                    **normalization_details,
                 }
             finally:
                 if conn is not None:

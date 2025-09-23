@@ -114,6 +114,10 @@
             <p>{{ error.message }}</p>
             <h3>Query</h3>
             <pre>{{ error.query }}</pre>
+            {% if error.normalized_query %}
+                <h3>Normalized Query</h3>
+                <pre>{{ error.normalized_query }}</pre>
+            {% endif %}
             {% if debug_details and debug_details.traceback %}
                 <h3>Traceback</h3>
                 <pre>{{ debug_details.traceback }}</pre>
@@ -124,8 +128,25 @@
     {% if debug_details and not error %}
         <div class="debug-card">
             <h2>Execution details</h2>
-            <p><strong>Rows affected:</strong> {{ debug_details.rowcount }}</p>
-            {% if debug_details.lastrowid %}
+            {% if debug_details.normalized_query %}
+                <h3>Normalized Query</h3>
+                <pre>{{ debug_details.normalized_query }}</pre>
+            {% endif %}
+            {% if debug_details.identifier_corrections %}
+                <p><strong>Identifier corrections applied:</strong></p>
+                <ul>
+                    {% for original, corrected in debug_details.identifier_corrections.items() %}
+                        <li><code>'{{ original }}'</code> → <code>"{{ corrected }}"</code></li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% if 'returned_rows' in debug_details %}
+                <p><strong>Rows returned:</strong> {{ debug_details.returned_rows }}</p>
+            {% endif %}
+            {% if 'rowcount' in debug_details %}
+                <p><strong>Rows affected:</strong> {{ debug_details.rowcount }}</p>
+            {% endif %}
+            {% if debug_details.get('lastrowid') %}
                 <p><strong>Last inserted row id:</strong> {{ debug_details.lastrowid }}</p>
             {% endif %}
         </div>
