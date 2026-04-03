@@ -14,9 +14,6 @@ import io
 import base64
 import re
 
-# import openai
-# openai.api_key = "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"
-
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
